@@ -1,38 +1,7 @@
-import tweepy
-from all_keys import *
-from sys import exit
 from flask import Flask, render_template, request
 from flask_mysqldb import MySQL
-import datetime
-
-def get_followers(username):
-    try:
-        client = tweepy.Client(bearer_token)
-        user_id = client.get_user(username=username).data.id
-    except AttributeError:
-        return None
-    else:
-        response = client.get_users_followers(user_id, max_results=1000).data
-        followers = []
-        for user in response:
-            followers.append([user.name, user.username])
-        return followers
-
-
-def time_from_lastcheck(time):
-    _now = datetime.datetime.now()
-    _time = _now - time
-    return(_time.seconds/3600)
-
-def printAnswer(user, followed, unfollowed):
-    answer = "Follow Tracker - " + user[0] + " since " + str(user[1]) + ": \n\n" + str(len(followed)) + " new users followed you:\n"
-    for follow in followed:
-        answer += follow[0] + " (@" + follow[1] + ")\n"
-    answer += "\n"+ str(len(unfollowed)) + " new users unfollowed you:\n"
-    for unfollow in unfollowed:
-        answer += unfollow[0] + " (@" + unfollow[1] + ")\n"
-    return answer
-
+import helpful_functions
+from soupsieve import escape
 
 app = Flask(__name__)
 app.config['MYSQL_HOST'] = 'localhost'
@@ -56,8 +25,10 @@ def form():
             query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
             cursor.execute(query)
             id = cursor.fetchall()[0][0]
-            followers = get_followers(username)
+            followers = helpful_functions.get_followers(username)
             for follower in followers:
+                follower[0] = escape(follower[0])
+                follower[1] = escape(follower[1])
                 query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + follower[0] +'''\', \'''' + follower[1] +'''\', \'''' + str(id) +'''\')'''
                 cursor.execute(query)
                 mysql.connection.commit()
@@ -66,14 +37,14 @@ def form():
         # already in database
         else:
             our_user = cursor.fetchall()
-            if time_from_lastcheck(our_user[0][1]) > 0:
+            if helpful_functions.time_from_lastcheck(our_user[0][1]) > 0:
                 query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
                 cursor.execute(query)
                 id = cursor.fetchall()[0][0]
                 query = ''' SELECT name, username from followers WHERE user_id =\'''' + str(id) + '''\''''
                 cursor.execute(query)
                 old_followers = cursor.fetchall()
-                fllwrs = get_followers(username)
+                fllwrs = helpful_functions.get_followers(username)
                 followers, foll_bool, followed, unfollowed = [], [], [], []
                 for fllwr in fllwrs:
                     followers.append(fllwr[1])
@@ -90,12 +61,14 @@ def form():
                 for i in range(0, len(fllwrs)):
                     if foll_bool[i] == False:
                         followed.append(fllwrs[i])
+                        fllwrs[i][0] = escape(fllwrs[i][0])
+                        fllwrs[i][1] = escape(fllwrs[i][1])
                         query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + fllwrs[i][0] +'''\', \'''' + fllwrs[i][1] +'''\', \'''' + str(id) +'''\')'''
                         cursor.execute(query)
                         mysql.connection.commit()
 
                 # our_user = (('username', datetime.datetime(y, m, d, h, m, s)),)
-                return(printAnswer(our_user[0], followed, unfollowed))
+                return(helpful_functions.printAnswer(our_user[0], followed, unfollowed))
             else:
                 return('Your last check was less than 24 hours ago!')
 
