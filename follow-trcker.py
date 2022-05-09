@@ -12,7 +12,7 @@ def get_followers(username):
     except AttributeError:
         return None
     else:
-        response = client.get_users_followers(user_id).data
+        response = client.get_users_followers(user_id, max_results=1000).data
         followers = []
         for user in response:
             followers.append([user.name, user.username])
@@ -23,6 +23,16 @@ def time_from_lastcheck(time):
     _now = datetime.datetime.now()
     _time = _now - time
     return(_time.seconds/3600)
+
+def printAnswer(user, followed, unfollowed):
+    answer = "Follow Tracker - " + user[0] + " since " + str(user[1]) + ": \n\n" + str(len(followed)) + " new users followed you:\n"
+    for follow in followed:
+        answer += follow[0] + " (@" + follow[1] + ")\n"
+    answer += "\n"+ str(len(unfollowed)) + " new users unfollowed you:\n"
+    for unfollow in unfollowed:
+        answer += unfollow[0] + " (@" + unfollow[1] + ")\n"
+    return answer
+
 
 app = Flask(__name__)
 app.config['MYSQL_HOST'] = 'localhost'
@@ -38,6 +48,7 @@ def form():
         cursor = mysql.connection.cursor()
         query = ''' SELECT name, last_check from users WHERE name =\'''' + username + '''\''''
         _response = cursor.execute(query)
+        # first check
         if _response == 0:
             query = '''INSERT INTO users(id, name, last_check) VALUES(NULL, \'''' + username +'''\', NULL)'''
             cursor.execute(query)
@@ -52,37 +63,44 @@ def form():
                 mysql.connection.commit()
             cursor.close()
             return('You were added database. Check in 24 hours if anyone followed or unfollowed you')
+        # already in database
         else:
             our_user = cursor.fetchall()
             if time_from_lastcheck(our_user[0][1]) > 0:
                 query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
                 cursor.execute(query)
                 id = cursor.fetchall()[0][0]
-                query = ''' SELECT username from followers WHERE user_id =\'''' + str(id) + '''\''''
+                query = ''' SELECT name, username from followers WHERE user_id =\'''' + str(id) + '''\''''
                 cursor.execute(query)
                 old_followers = cursor.fetchall()
                 fllwrs = get_followers(username)
-                followers = [[fllwr[1], False] for fllwr in fllwrs]
+                followers, foll_bool, followed, unfollowed = [], [], [], []
+                for fllwr in fllwrs:
+                    followers.append(fllwr[1])
+                    foll_bool.append(False)
                 for old in old_followers:
-                    if old in followers:
-                        pass
-                answer = str(old_followers) + " vs " + str(followers)
-                return(answer)
+                    if old[1] in followers:
+                        where = followers.index(old[1])
+                        foll_bool[where] = True
+                    else:
+                        unfollowed.append(old)
+                        query = '''DELETE FROM followers WHERE username =\'''' + old[1] + '''\''''
+                        cursor.execute(query)
+                        mysql.connection.commit()
+                for i in range(0, len(fllwrs)):
+                    if foll_bool[i] == False:
+                        followed.append(fllwrs[i])
+                        query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + fllwrs[i][0] +'''\', \'''' + fllwrs[i][1] +'''\', \'''' + str(id) +'''\')'''
+                        cursor.execute(query)
+                        mysql.connection.commit()
+
+                # our_user = (('username', datetime.datetime(y, m, d, h, m, s)),)
+                return(printAnswer(our_user[0], followed, unfollowed))
             else:
                 return('Your last check was less than 24 hours ago!')
 
-
-
     else:
         return render_template('form.html')
-    
-    # query = '''INSERT INTO users(id, name, last_check) VALUES(NULL, \'''' + username +'''\', NULL)'''
-    # cursor.execute(query)
-    # # resp = cursor.fetchall()
-    # mysql.connection.commit()
-    # cursor.close()
-    # # return(str(resp[0][0]))
-    # return("udidit")
 
 if __name__ == "__main__":
     app.run(debug=True)
