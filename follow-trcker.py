@@ -66,7 +66,11 @@ def form():
                         query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + fllwrs[i][0] +'''\', \'''' + fllwrs[i][1] +'''\', \'''' + str(id) +'''\')'''
                         cursor.execute(query)
                         mysql.connection.commit()
-
+                # updating last check datatime
+                query = '''UPDATE users(last_check) VALUES(NULL) WHERE id =\'''' + str(id) + '''\''''
+                cursor.execute(query)
+                mysql.connection.commit()
+                cursor.close()
                 # our_user = (('username', datetime.datetime(y, m, d, h, m, s)),)
                 return(helpful_functions.printAnswer(our_user[0], followed, unfollowed))
             else:
