@@ -67,7 +67,7 @@ def form():
                         cursor.execute(query)
                         mysql.connection.commit()
                 # updating last check datatime
-                query = '''UPDATE users(last_check) VALUES(NULL) WHERE id =\'''' + str(id) + '''\''''
+                query = '''UPDATE users SET last_check = NULL WHERE id =\'''' + str(id) + '''\''''
                 cursor.execute(query)
                 mysql.connection.commit()
                 cursor.close()
