@@ -14,9 +14,9 @@ mysql = MySQL(app)
 def form():
     if request.method == 'POST':
         username = request.form['name']
-        if not hf.twitter_username_regex(username): return("You can't have a username like that on Twitter")
+        if not hf.MyTwitter.twitter_username_regex(username): return("You can't have a username like that on Twitter")
         cursor = mysql.connection.cursor()
-        query = ''' SELECT name, last_check from users WHERE name =\'''' + username + '''\''''
+        query = ''' SELECT id, name, last_check from users WHERE name =\'''' + username + '''\''''
         _response = cursor.execute(query)
         # first check
         if _response == 0:
@@ -26,28 +26,26 @@ def form():
             query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
             cursor.execute(query)
             id = cursor.fetchall()[0][0]
-            followers = hf.get_followers(username)
-            if isinstance(followers, str): return followers
+            followers = hf.MyTwitter.get_followers(username)
+            if isinstance(followers, str): return followers # returning an error message
             for follower in followers:
-                follower[0] = hf.twitter_name_escape(follower[0])
-                follower[1] = hf.twitter_name_escape(follower[1])
+                follower[0] = hf.MyTwitter.twitter_name_escape(follower[0])
+                follower[1] = hf.MyTwitter.twitter_name_escape(follower[1])
                 query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + follower[0] +'''\', \'''' + follower[1] +'''\', \'''' + str(id) +'''\')'''
                 cursor.execute(query)
                 mysql.connection.commit()
             cursor.close()
-            return('You were added database. Check in 24 hours if anyone followed or unfollowed you')
+            return('You were added database. Check in 12 hours if anyone followed or unfollowed you')
         # already in database
         else:
             our_user = cursor.fetchall()
-            if hf.time_from_lastcheck(our_user[0][1]) > 0:
-                query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
-                cursor.execute(query)
-                id = cursor.fetchall()[0][0]
+            if hf.time_from_lastcheck(our_user[0][2]) > 0:
+                id = our_user[0][0]
                 query = ''' SELECT name, username from followers WHERE user_id =\'''' + str(id) + '''\''''
                 cursor.execute(query)
                 old_followers = cursor.fetchall()
-                fllwrs = hf.get_followers(username)
-                if isinstance(fllwrs, str): return fllwrs
+                fllwrs = hf.MyTwitter.get_followers(username)
+                if isinstance(fllwrs, str): return fllwrs # returning an error message
                 followers, foll_bool, followed, unfollowed = [], [], [], []
                 for fllwr in fllwrs:
                     followers.append(fllwr[1])
@@ -64,8 +62,8 @@ def form():
                 for i in range(0, len(fllwrs)):
                     if foll_bool[i] == False:
                         followed.append(fllwrs[i])
-                        fllwrs[i][0] = hf.twitter_name_escape(fllwrs[i][0])
-                        fllwrs[i][1] = hf.twitter_name_escape(fllwrs[i][1])
+                        fllwrs[i][0] = hf.MyTwitter.twitter_name_escape(fllwrs[i][0])
+                        fllwrs[i][1] = hf.MyTwitter.twitter_name_escape(fllwrs[i][1])
                         query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + fllwrs[i][0] +'''\', \'''' + fllwrs[i][1] +'''\', \'''' + str(id) +'''\')'''
                         cursor.execute(query)
                         mysql.connection.commit()
@@ -74,10 +72,10 @@ def form():
                 cursor.execute(query)
                 mysql.connection.commit()
                 cursor.close()
-                # our_user = (('username', datetime.datetime(y, m, d, h, m, s)),)
+                # our_user = ((id, 'username', datetime.datetime(y, m, d, h, m, s)),)
                 return(hf.printAnswer(our_user[0], followed, unfollowed))
             else:
-                return('Your last check was less than 24 hours ago!')
+                return('Your last check was less than 12 hours ago!')
 
     else:
         return render_template('form.html')
