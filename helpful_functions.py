@@ -4,6 +4,51 @@ from all_keys import *
 import datetime
 from re import match
 
+class SQLQueries():
+
+    def __init__(self, mysql_app):
+        self.mysql = mysql_app
+        self.cursor = mysql_app.connection.cursor()
+
+    def selectUser(self, username):
+        query = ''' SELECT id, name, last_check from users WHERE name =\'''' + username + '''\''''
+        self.cursor.execute(query)
+        return self.cursor.fetchall()
+    
+    def getUserID(self, username):
+        query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
+        self.cursor.execute(query)
+        return self.cursor.fetchall()[0][0]
+
+    def insertUser(self, username):
+        query = '''INSERT INTO users(id, name, last_check) VALUES(NULL, \'''' + username +'''\', NULL)'''
+        self.cursor.execute(query)
+        self.mysql.connection.commit()
+
+    def updateDate(self, id):
+        query = '''UPDATE users SET last_check = NULL WHERE id =\'''' + str(id) + '''\''''
+        self.cursor.execute(query)
+        self.mysql.connection.commit()
+
+    def insertFollower(self, name, username, user_id):
+        name = MyTwitter.twitter_name_escape(name)
+        username = MyTwitter.twitter_name_escape(username)
+        query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + name +'''\', \'''' + username +'''\', \'''' + str(user_id) +'''\')'''
+        self.cursor.execute(query)
+        self.mysql.connection.commit()
+
+    def deleteFollower(self, username, user_id):
+        query = '''DELETE FROM followers WHERE username =\'''' + username + '''\' AND user_id =\'''' + str(user_id) + '''\''''
+        self.cursor.execute(query)
+        self.mysql.connection.commit()
+    
+    def selectFollowersOfUser(self, user_id):
+        query = ''' SELECT name, username from followers WHERE user_id =\'''' + str(user_id) + '''\''''
+        self.cursor.execute(query)
+        return self.cursor.fetchall()
+    
+    def closeCursor(self):
+        self.cursor.close()
 
 
 class MyTwitter:
