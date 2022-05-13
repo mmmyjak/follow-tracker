@@ -1,7 +1,7 @@
+from inspect import Attribute
 from flask import Flask, render_template, request
 from flask_mysqldb import MySQL
-import helpful_functions
-from soupsieve import escape
+import helpful_functions as hf
 
 app = Flask(__name__)
 app.config['MYSQL_HOST'] = 'localhost'
@@ -14,6 +14,7 @@ mysql = MySQL(app)
 def form():
     if request.method == 'POST':
         username = request.form['name']
+        if not hf.twitter_username_regex(username): return("You can't have a username like that on Twitter")
         cursor = mysql.connection.cursor()
         query = ''' SELECT name, last_check from users WHERE name =\'''' + username + '''\''''
         _response = cursor.execute(query)
@@ -25,10 +26,11 @@ def form():
             query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
             cursor.execute(query)
             id = cursor.fetchall()[0][0]
-            followers = helpful_functions.get_followers(username)
+            followers = hf.get_followers(username)
+            if isinstance(followers, str): return followers
             for follower in followers:
-                follower[0] = escape(follower[0])
-                follower[1] = escape(follower[1])
+                follower[0] = hf.twitter_name_escape(follower[0])
+                follower[1] = hf.twitter_name_escape(follower[1])
                 query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + follower[0] +'''\', \'''' + follower[1] +'''\', \'''' + str(id) +'''\')'''
                 cursor.execute(query)
                 mysql.connection.commit()
@@ -37,14 +39,15 @@ def form():
         # already in database
         else:
             our_user = cursor.fetchall()
-            if helpful_functions.time_from_lastcheck(our_user[0][1]) > 0:
+            if hf.time_from_lastcheck(our_user[0][1]) > 0:
                 query = ''' SELECT id from users WHERE name =\'''' + username + '''\''''
                 cursor.execute(query)
                 id = cursor.fetchall()[0][0]
                 query = ''' SELECT name, username from followers WHERE user_id =\'''' + str(id) + '''\''''
                 cursor.execute(query)
                 old_followers = cursor.fetchall()
-                fllwrs = helpful_functions.get_followers(username)
+                fllwrs = hf.get_followers(username)
+                if isinstance(fllwrs, str): return fllwrs
                 followers, foll_bool, followed, unfollowed = [], [], [], []
                 for fllwr in fllwrs:
                     followers.append(fllwr[1])
@@ -61,8 +64,8 @@ def form():
                 for i in range(0, len(fllwrs)):
                     if foll_bool[i] == False:
                         followed.append(fllwrs[i])
-                        fllwrs[i][0] = escape(fllwrs[i][0])
-                        fllwrs[i][1] = escape(fllwrs[i][1])
+                        fllwrs[i][0] = hf.twitter_name_escape(fllwrs[i][0])
+                        fllwrs[i][1] = hf.twitter_name_escape(fllwrs[i][1])
                         query = '''INSERT INTO followers(id, name, username, user_id) VALUES(NULL, \'''' + fllwrs[i][0] +'''\', \'''' + fllwrs[i][1] +'''\', \'''' + str(id) +'''\')'''
                         cursor.execute(query)
                         mysql.connection.commit()
@@ -72,7 +75,7 @@ def form():
                 mysql.connection.commit()
                 cursor.close()
                 # our_user = (('username', datetime.datetime(y, m, d, h, m, s)),)
-                return(helpful_functions.printAnswer(our_user[0], followed, unfollowed))
+                return(hf.printAnswer(our_user[0], followed, unfollowed))
             else:
                 return('Your last check was less than 24 hours ago!')
 
